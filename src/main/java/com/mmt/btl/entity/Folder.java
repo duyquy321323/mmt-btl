@@ -28,36 +28,36 @@ import lombok.Setter;
 @AllArgsConstructor
 @Setter
 @Getter
-@Table(name="file_or_folder")
-public class FileOrFolder {
+@Table(name="folder")
+public class Folder {
     @Id
     @GeneratedValue(strategy=GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name="file_name")
-    private String fileName;
+    @Column(name="folder_name")
+    private String folder_name;
 
     @Column(name="length")
     private Long length;
 
-    @Column(name="type")
-    private String type;
-
     @Column(name="pieces")
     private String hashPieces;
 
-    @OneToOne(mappedBy="fileOrFolder", cascade = {CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
+    @OneToOne(mappedBy="folder", cascade = {CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
     private Torrent torrent;
 
-    @OneToMany(mappedBy="fileOrFolder", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval=true)
-    private List<FileOrFolder> fileOrFolders = new ArrayList<>();
+    @OneToMany(mappedBy="folder", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval=true)
+    private List<Folder> folders = new ArrayList<>();
 
     @ManyToOne
     @JoinColumn(name="folder_parent")
-    private FileOrFolder fileOrFolder;
+    private Folder folder;
 
-    @OneToMany(mappedBy="id.fileOrFolder", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
+    @OneToMany(mappedBy="id.folder", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
     private List<Piece> pieces = new ArrayList<>();
+
+    @OneToMany(mappedBy="folder", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval=true)
+    private List<File> files = new ArrayList<>();
 
     @ManyToOne
     @JoinColumn(name="tracker_id")

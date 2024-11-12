@@ -1,0 +1,56 @@
+package com.mmt.btl.entity;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.persistence.CascadeType;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.ManyToOne;
+import javax.persistence.OneToMany;
+import javax.persistence.OneToOne;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Entity
+@Setter
+@Getter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class File {
+    @Id
+    @GeneratedValue(strategy=GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name="file_name")
+    private String file_name;
+
+    @Column(name="length")
+    private Long length;
+
+    @Column(name="pieces")
+    private String hashPieces;
+
+    @OneToOne(mappedBy="file", cascade = {CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
+    private Torrent torrent;
+
+    @ManyToOne
+    @JoinColumn(name="folder_parent")
+    private Folder folder;
+
+    @OneToMany(mappedBy="id.file", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
+    private List<Piece> pieces = new ArrayList<>();
+
+    @ManyToOne
+    @JoinColumn(name="tracker_id")
+    private Tracker tracker;
+}
