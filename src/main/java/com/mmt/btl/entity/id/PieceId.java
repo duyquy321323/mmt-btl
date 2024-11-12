@@ -28,4 +28,10 @@ public class PieceId implements Serializable {
     @ManyToOne
     @JoinColumn(name = "file_or_folder_id", foreignKey=@ForeignKey(name="FK_piece_file_or_folder_id"))
     private FileOrFolder fileOrFolder;
+
+    @Column(name="start_offset")
+    private Long startOffset;
+
+    @Column(name="end_offset")
+    private Long endOffset;
 }
