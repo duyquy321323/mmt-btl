@@ -29,12 +29,12 @@ public class Tracker {
     @GeneratedValue(strategy=GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name="url_tracker")
+    @Column(name="url_tracker", unique=true)
     private String url;
 
     @OneToMany(mappedBy="tracker", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
     private List<FileOrFolder> fileOrFolders = new ArrayList<>();
 
-    @ManyToMany(mappedBy="trackers")
-    private List<Torrent> torrents = new ArrayList<>();
+    @OneToMany(mappedBy="id.tracker", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval = true)
+    private List<TorrentTracker> torrentTrackers = new ArrayList<>();
 }

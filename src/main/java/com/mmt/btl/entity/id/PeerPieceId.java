@@ -24,13 +24,17 @@ import lombok.Setter;
 @Builder
 public class PeerPieceId implements Serializable {
     @ManyToOne
-    @JoinColumn(name="peer_id")
+    @JoinColumns({
+        @JoinColumn(name="user_agent", referencedColumnName="user_agent"),
+        @JoinColumn(name="user_id", referencedColumnName="user_id")
+    })
     private Peer peer;
 
     @ManyToOne
     @JoinColumns({
-        @JoinColumn(name="piece_id"),
-        @JoinColumn(name="file_or_folder_id")
+        @JoinColumn(name="piece_id", referencedColumnName="id"),
+        @JoinColumn(name="file_or_folder_id", referencedColumnName="file_or_folder_id"),
+        @JoinColumn(name="start_offset", referencedColumnName = "start_offset")
     })
     private Piece piece;
 }

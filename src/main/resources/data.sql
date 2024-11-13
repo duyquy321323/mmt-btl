@@ -22,21 +22,7 @@ CREATE TABLE IF NOT EXISTS file_or_folder_id_sequence (
     next_id BIGINT
 );
 
-DELIMITER $$
-
-CREATE TRIGGER before_insert_piece
-BEFORE INSERT ON piece
-FOR EACH ROW
-BEGIN
-    DECLARE max_id BIGINT;
-
-    -- Lấy giá trị lớn nhất của id cho file_or_folder_id hiện tại, hoặc 1 nếu không có
-    SELECT COALESCE(MAX(id), 0) + 1 INTO max_id
-    FROM piece
-    WHERE file_or_folder_id = NEW.file_or_folder_id;
-
-    -- Gán giá trị id cho bản ghi mới
-    SET NEW.id = max_id;
-END$$
-
-DELIMITER ;
+CREATE TABLE IF NOT EXISTS user_id_sequence (
+    user_id INT PRIMARY KEY,
+    next_id BIGINT
+);

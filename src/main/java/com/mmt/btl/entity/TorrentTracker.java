@@ -1,8 +1,9 @@
 package com.mmt.btl.entity;
 
+import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
+
+import com.mmt.btl.entity.id.TorrentTrackerId;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,7 +17,7 @@ import lombok.Setter;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class SmallFile {
-    @Id
-    @GeneratedValue
+public class TorrentTracker {
+    @EmbeddedId
+    private TorrentTrackerId id;
 }

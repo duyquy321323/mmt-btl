@@ -15,7 +15,7 @@ public class DatabaseInitializer {
     @PostConstruct
     public void init() {
         // Tạo Trigger khi ứng dụng khởi động
-        String sql = "CREATE TRIGGER before_insert_piece " +
+        String sql1 = "CREATE TRIGGER IF NOT EXISTS before_insert_piece " +
                 "BEFORE INSERT ON piece " +
                 "FOR EACH ROW BEGIN " +
                 "DECLARE max_id BIGINT; " +
@@ -24,6 +24,16 @@ public class DatabaseInitializer {
                 "WHERE file_or_folder_id = NEW.file_or_folder_id; " +
                 "SET NEW.id = max_id; " +
                 "END;";
-        jdbcTemplate.execute(sql);
+        jdbcTemplate.execute(sql1);
+        // String sql2 = "CREATE TRIGGER IF NOT EXISTS before_insert_peer " +
+        //         "BEFORE INSERT ON peer " +
+        //         "FOR EACH ROW BEGIN " +
+        //         "DECLARE max_id BIGINT; " +
+        //         "SELECT COALESCE(MAX(id), 0) + 1 INTO max_id " +
+        //         "FROM peer " +
+        //         "WHERE user_id = NEW.user_id; " +
+        //         "SET NEW.id = max_id; " +
+        //         "END;";
+        // jdbcTemplate.execute(sql2);
     }
 }

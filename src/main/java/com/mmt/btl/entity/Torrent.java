@@ -10,8 +10,7 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
-import javax.persistence.JoinTable;
-import javax.persistence.ManyToMany;
+import javax.persistence.OneToMany;
 import javax.persistence.OneToOne;
 
 import lombok.AllArgsConstructor;
@@ -35,14 +34,9 @@ public class Torrent {
     private Long pieceLength;
 
     @OneToOne
-    @JoinColumn(name="file_or_folder_id")
+    @JoinColumn(name="file_or_folder_id", nullable=false)
     private FileOrFolder fileOrFolder;
 
-    @ManyToMany
-    @JoinTable(
-        joinColumns=@JoinColumn(name="torrent_id"),
-        inverseJoinColumns=@JoinColumn(name="tracker_id"),
-        name="torrent_tracker"
-    )
-    private List<Tracker> trackers = new ArrayList<>();
+    @OneToMany(mappedBy = "id.torrent", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval = true)
+    private List<TorrentTracker> torrentTrackers = new ArrayList<>();
 }

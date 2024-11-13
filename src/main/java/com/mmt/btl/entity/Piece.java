@@ -34,4 +34,7 @@ public class Piece {
 
     @OneToMany(mappedBy="id.piece", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
     private List<PeerPiece> peerPieces = new ArrayList<>();
+
+    @Column(name="end_offset", unique=true)
+    private Long endOffset;
 }
