@@ -31,10 +31,6 @@ public class PeerPieceId implements Serializable {
     private Peer peer;
 
     @ManyToOne
-    @JoinColumns({
-        @JoinColumn(name="piece_id", referencedColumnName="id"),
-        @JoinColumn(name="file_or_folder_id", referencedColumnName="file_or_folder_id"),
-        @JoinColumn(name="start_offset", referencedColumnName = "start_offset")
-    })
+    @JoinColumn(name="piece_hash", referencedColumnName="hash")
     private Piece piece;
 }

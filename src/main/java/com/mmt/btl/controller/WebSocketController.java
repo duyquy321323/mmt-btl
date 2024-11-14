@@ -14,15 +14,27 @@ public class WebSocketController {
         this.messagingTemplate = messagingTemplate;
     }
 
-    @MessageMapping("/sendMessage") // Nhận tin nhắn từ client tại endpoint /app/sendMessage
-    @SendTo("/topic/messages") // Gửi tin nhắn đến các client qua kênh /topic/messages
-    public String processMessageFromClient(String message) {
+    @MessageMapping("/sendMessageServer") // Nhận tin nhắn từ client tại endpoint /app/sendMessage
+    @SendTo("/topic/server") // Gửi tin nhắn đến các client qua kênh /server
+    public String processMessageServerFromClient(String message) {
         return "Server received: " + message;
     }
 
     // Gửi tin nhắn đến tất cả các client từ server
     // hàm cho phép gửi tin chủ động mà không cần nhận tin từ client trước
-    public void sendMessageToClients(String message) {
-        messagingTemplate.convertAndSend("/topic/messages", message);
+    public void sendMessageServerToClients(String message) {
+        messagingTemplate.convertAndSend("/topic/server", message);
+    }
+
+    @MessageMapping("/sendMessageTracker") // Nhận tin nhắn từ client tại endpoint /app/sendMessage
+    @SendTo("/topic/tracker") // Gửi tin nhắn đến các client qua kênh /tracker
+    public String processMessageTrackerFromClient(String message) {
+        return "Server received: " + message;
+    }
+
+    // Gửi tin nhắn đến tất cả các client từ tracker
+    // hàm cho phép gửi tin chủ động mà không cần nhận tin từ client trước
+    public void sendMessageTrackerToClients(String message) {
+        messagingTemplate.convertAndSend("/topic/tracker", message);
     }
 }

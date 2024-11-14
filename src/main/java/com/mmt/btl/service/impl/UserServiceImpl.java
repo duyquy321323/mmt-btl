@@ -34,6 +34,7 @@ public class UserServiceImpl implements UserService {
 
     final private RegisterRequestModelMapper registerRequestModelMapper;
 
+    @Override
     public LoginResponse login(HttpServletRequest servletRequest, LoginRequest request) throws LoginFailedException {
         if (request.getUsername() != null && !request.getUsername().equals("")) {
             User user = userRepository.findByUsername(request.getUsername())
@@ -53,6 +54,7 @@ public class UserServiceImpl implements UserService {
         throw new LoginFailedException();
     }
 
+    @Override
     public void register(RegisterRequest request) throws LoginFailedException {
         if (request.getUsername() != null && !request.getUsername().equals("")) {
             Optional<User> user = userRepository.findByUsername(request.getUsername());
@@ -65,5 +67,23 @@ public class UserServiceImpl implements UserService {
             throw new LoginFailedException("User is existed...!");
         }
         throw new LoginFailedException("Request is invalid...!");
+    }
+
+    @Override
+    public void logout(HttpServletRequest request, Long userId) throws LoginFailedException{
+        Optional<User> user = userRepository.findById(userId);
+        if(user.isPresent()){
+            String userAgent = request.getHeader("User-Agent");
+            if(userAgent != null){
+                Optional<Peer> peer = peerRepository.findById(PeerId.builder().user(user.get()).userAgent(userAgent).build());
+                if(peer.isPresent()){
+                    Peer newPeer = peer.get();
+                    newPeer.setStatus(false);
+                    peerRepository.save(newPeer);
+                    return;
+                }
+            }
+        }
+        throw new LoginFailedException("Logout failed...!");
     }
 }

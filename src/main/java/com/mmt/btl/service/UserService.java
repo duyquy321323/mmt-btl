@@ -9,5 +9,8 @@ import com.mmt.btl.response.LoginResponse;
 
 public interface UserService {
     public LoginResponse login(HttpServletRequest servletRequest, LoginRequest request) throws LoginFailedException;
+
     public void register(RegisterRequest request) throws LoginFailedException;
+
+    public void logout(HttpServletRequest request, Long userId) throws LoginFailedException;
 }
