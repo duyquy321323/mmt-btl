@@ -17,4 +17,13 @@ public class HandleExceptionCustom {
         response.setStackTraceElements(ex.getStackTrace());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
+
+    @ExceptionHandler(MMTNotFoundException.class)
+    public ResponseEntity<?> throwNotFoundException(MMTNotFoundException ex) {
+        ExceptionResponse response = new ExceptionResponse();
+        response.setMessage(ex.getMessage());
+        response.setStatus(HttpStatus.NOT_FOUND);
+        response.setStackTraceElements(ex.getStackTrace());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
 }

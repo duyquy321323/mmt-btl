@@ -5,9 +5,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class LoginResponse {
-    private String username;
+public class TrackerResponse {
     private Long id;
-    private Long expiryTime;
-    private String token;
+    private String url;
 }

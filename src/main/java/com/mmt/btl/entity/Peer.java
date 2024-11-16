@@ -11,6 +11,9 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
+import javax.persistence.JoinColumns;
+import javax.persistence.JoinTable;
+import javax.persistence.ManyToMany;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 
@@ -37,4 +40,7 @@ public class Peer {
 
     @OneToMany(mappedBy="id.peer", cascade = {CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval = true)
     private List<PeerPiece> peerPieces = new ArrayList<>();
+
+    @OneToMany(mappedBy = "id.peer", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval = true)
+    private List<PeerFile> peerFiles = new ArrayList<>();
 }

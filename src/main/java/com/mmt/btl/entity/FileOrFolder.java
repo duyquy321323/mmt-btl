@@ -10,11 +10,8 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
-import javax.persistence.JoinTable;
-import javax.persistence.ManyToMany;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
-import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
 import lombok.AllArgsConstructor;
@@ -45,10 +42,8 @@ public class FileOrFolder {
     @Column(name="type")
     private String type;
 
-    @Column(name="pieces", length=Integer.MAX_VALUE)
-    private String hashPieces;
-
-    @OneToOne(mappedBy="fileOrFolder", cascade = {CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
+    @ManyToOne
+    @JoinColumn(name="torrent_id")
     private Torrent torrent;
 
     @OneToMany(mappedBy="fileOrFolder", cascade = {CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
@@ -58,10 +53,13 @@ public class FileOrFolder {
     @JoinColumn(name="folder_parent")
     private FileOrFolder fileOrFolder;
 
-    @OneToMany(mappedBy = "fileOrFolder", cascade={CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval=true)
+    @OneToMany(mappedBy = "id.fileOrFolder", cascade={CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval=true)
     private List<FilesPiece> filesPieces = new ArrayList<>();
 
-    @ManyToOne
-    @JoinColumn(name="tracker_id")
-    private Tracker tracker;
+    @OneToMany(mappedBy="id.fileOrFolder", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval = true)
+    private List<PeerFile> peerFiles = new ArrayList<>();
+
+    // @ManyToOne
+    // @JoinColumn(name="tracker_id")
+    // private Tracker tracker;
 }

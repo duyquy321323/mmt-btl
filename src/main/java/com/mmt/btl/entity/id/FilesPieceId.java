@@ -1,5 +1,7 @@
 package com.mmt.btl.entity.id;
 
+import java.io.Serializable;
+
 import javax.persistence.Embeddable;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
@@ -19,12 +21,12 @@ import lombok.Setter;
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class FilesPieceId {
+public class FilesPieceId implements Serializable {
     @ManyToOne
-    @JoinColumn(name="file_or_folder_id")
+    @JoinColumn(name = "file_or_folder_id")
     private FileOrFolder fileOrFolder;
 
     @ManyToOne
-    @JoinColumn(name = "piece_hash")
+    @JoinColumn(name = "piece_id")
     private Piece piece;
 }

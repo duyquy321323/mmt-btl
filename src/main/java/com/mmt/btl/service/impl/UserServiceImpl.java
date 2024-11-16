@@ -5,6 +5,13 @@ import java.util.Optional;
 import javax.servlet.http.HttpServletRequest;
 import javax.transaction.Transactional;
 
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.mmt.btl.entity.Peer;
@@ -18,6 +25,7 @@ import com.mmt.btl.repository.UserRepository;
 import com.mmt.btl.request.LoginRequest;
 import com.mmt.btl.request.RegisterRequest;
 import com.mmt.btl.response.LoginResponse;
+import com.mmt.btl.service.JwtService;
 import com.mmt.btl.service.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -34,12 +42,25 @@ public class UserServiceImpl implements UserService {
 
     final private RegisterRequestModelMapper registerRequestModelMapper;
 
+    final private PasswordEncoder passwordEncoder;
+
+    final private AuthenticationManager authenticationManager;
+
+    final private UserDetailsService userDetailsService;
+
+    final private JwtService jwtService;
+
     @Override
     public LoginResponse login(HttpServletRequest servletRequest, LoginRequest request) throws LoginFailedException {
         if (request.getUsername() != null && !request.getUsername().equals("")) {
             User user = userRepository.findByUsername(request.getUsername())
                     .orElseThrow(() -> new LoginFailedException());
-            if (user.getPassword().equals(request.getPassword())) {
+            if (passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+                UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
+                UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
+                        request.getUsername(), request.getPassword(), userDetails.getAuthorities());
+                Authentication authentication = authenticationManager.authenticate(authenticationToken);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
                 String userAgent = servletRequest.getHeader("User-Agent");
                 Optional<Peer> peer = peerRepository.findById(PeerId.builder().user(user).userAgent(userAgent).build());
                 if (peer.isEmpty()) {
@@ -48,7 +69,11 @@ public class UserServiceImpl implements UserService {
                 } else {
                     peer.get().setStatus(true);
                 }
-                return userModelMapper.toLoginResponse(user);
+                String token = jwtService.generateToken(user); // tạo token cho user
+                LoginResponse userLogin = userModelMapper.toLoginResponse(user);
+                userLogin.setExpiryTime(jwtService.extractExpirationToken(token).getTime());
+                userLogin.setToken(token);
+                return userLogin;
             }
         }
         throw new LoginFailedException();
@@ -67,23 +92,5 @@ public class UserServiceImpl implements UserService {
             throw new LoginFailedException("User is existed...!");
         }
         throw new LoginFailedException("Request is invalid...!");
-    }
-
-    @Override
-    public void logout(HttpServletRequest request, Long userId) throws LoginFailedException{
-        Optional<User> user = userRepository.findById(userId);
-        if(user.isPresent()){
-            String userAgent = request.getHeader("User-Agent");
-            if(userAgent != null){
-                Optional<Peer> peer = peerRepository.findById(PeerId.builder().user(user.get()).userAgent(userAgent).build());
-                if(peer.isPresent()){
-                    Peer newPeer = peer.get();
-                    newPeer.setStatus(false);
-                    peerRepository.save(newPeer);
-                    return;
-                }
-            }
-        }
-        throw new LoginFailedException("Logout failed...!");
     }
 }

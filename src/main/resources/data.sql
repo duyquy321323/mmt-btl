@@ -17,12 +17,18 @@
 --     PRIMARY KEY(peer_id, piece_id, file_or_folder_id)
 -- );
 
-CREATE TABLE IF NOT EXISTS file_or_folder_id_sequence (
-    file_or_folder_id INT PRIMARY KEY,
-    next_id BIGINT
-);
+-- CREATE TABLE IF NOT EXISTS file_or_folder_id_sequence (
+--     file_or_folder_id INT PRIMARY KEY,
+--     next_id BIGINT
+-- );
 
-CREATE TABLE IF NOT EXISTS user_id_sequence (
-    user_id INT PRIMARY KEY,
-    next_id BIGINT
-);
+-- CREATE TABLE IF NOT EXISTS user_id_sequence (
+--     user_id INT PRIMARY KEY,
+--     next_id BIGINT
+-- );
+
+INSERT INTO tracker(url_tracker) VALUES
+("http://localhost/8001"),
+("http://localhost/8002"),
+("http://localhost/8003"),
+("http://localhost/8004");

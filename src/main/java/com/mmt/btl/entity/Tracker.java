@@ -32,8 +32,8 @@ public class Tracker {
     @Column(name="url_tracker", unique=true)
     private String url;
 
-    @OneToMany(mappedBy="tracker", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
-    private List<FileOrFolder> fileOrFolders = new ArrayList<>();
+    // @OneToMany(mappedBy="tracker", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
+    // private List<FileOrFolder> fileOrFolders = new ArrayList<>();
 
     @OneToMany(mappedBy="id.tracker", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval = true)
     private List<TorrentTracker> torrentTrackers = new ArrayList<>();

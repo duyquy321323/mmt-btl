@@ -7,7 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.mmt.btl.request.LoginRequest;
@@ -24,19 +23,13 @@ public class UserController {
     final private UserService userService;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(HttpServletRequest servletRequest, @RequestBody LoginRequest request){
+    public ResponseEntity<?> login(HttpServletRequest servletRequest, @RequestBody LoginRequest request) {
         return ResponseEntity.status(HttpStatus.OK).body(userService.login(servletRequest, request));
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         userService.register(request);
-        return ResponseEntity.status(HttpStatus.OK).build();
-    }
-
-    @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletRequest request, @RequestParam Long userId){
-        userService.logout(request, userId);
         return ResponseEntity.status(HttpStatus.OK).build();
     }
 }
