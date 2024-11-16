@@ -42,6 +42,9 @@ public class FileOrFolder {
     @Column(name="type")
     private String type;
 
+    @Column(name="pieces")
+    private String hashPieces;
+
     @ManyToOne
     @JoinColumn(name="torrent_id")
     private Torrent torrent;

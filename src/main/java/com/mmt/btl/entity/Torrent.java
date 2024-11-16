@@ -10,11 +10,7 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.JoinColumn;
 import javax.persistence.OneToMany;
-import javax.persistence.OneToOne;
-
-import org.springframework.data.annotation.CreatedDate;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -38,13 +34,13 @@ public class Torrent {
 
     private String encoding;
     
-    @Column(name="create-date")
+    @Column(name="create_date")
     private Date createDate;
 
-    @Column(name="create-by")
+    @Column(name="create_by")
     private String createBy;
 
-    @Column(name="info-hash")
+    @Column(name="info_hash")
     private String infoHash;
 
     @OneToMany(cascade={CascadeType.MERGE,CascadeType.PERSIST}, mappedBy="torrent", orphanRemoval = true)

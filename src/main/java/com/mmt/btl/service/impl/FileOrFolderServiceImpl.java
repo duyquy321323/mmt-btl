@@ -113,12 +113,15 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                         nextFiles = nextFiles.getFileOrFolder();
                     }
                     MultipartFile multipartFile = findMultipartFileByName(files, filename);
-                    calculateFileHash(multipartFile, fileOrFolder, currentPeer);
+                    String fileHash = calculateFileHash(multipartFile, fileOrFolder, currentPeer);
+                    fileOrFolder.setHashPieces(fileHash); // Lưu hash của file vào đối tượng FileOrFolder
                     fileOrFolder.setLength(multipartFile.getSize());
                     if (fileOrFolder.getFileOrFolder() != null) {
                         fileOrFolder.getFileOrFolder().getFileOrFolders().add(fileOrFolder);
                     }
                 } else if (fileOrFolder.getType().equals("FOLDER")) {
+                    String folderHash = calculateFolderHash(fileOrFolder);
+                    fileOrFolder.setHashPieces(folderHash); // Lưu hash của folder
                     if (fileOrFolder.getFileOrFolder() != null) {
                         fileOrFolder.getFileOrFolder().getFileOrFolders().add(fileOrFolder);
                     }
@@ -144,17 +147,19 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
 
     // Tính hash cho từng file bằng cách chia thành các piece
     @Transactional
-    private void calculateFileHash(MultipartFile file, FileOrFolder fileOrFolder, Peer peer)
+    private String calculateFileHash(MultipartFile file, FileOrFolder fileOrFolder, Peer peer)
             throws NoSuchAlgorithmException, IOException {
         MessageDigest sha1Digest = MessageDigest.getInstance("SHA-1");
         try (InputStream inputStream = file.getInputStream()) {
             byte[] buffer = new byte[512 * 1024]; // 512KB chunk size
+            StringBuilder fileHashBuilder = new StringBuilder();
             int bytesRead;
             long identity = 0;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 byte[] chunk = Arrays.copyOf(buffer, bytesRead);
                 byte[] pieceHash = sha1Digest.digest(chunk);
                 String hash = bytesToHex(pieceHash);
+                fileHashBuilder.append(hash); // Nối hash của piece vào chuỗi file hash
                 Piece newPiece = Piece.builder().hash(hash).piece(pieceHash).build();
                 if (pieceRepository.findByHash(hash).isEmpty()) {
                     newPiece.setPeerPieces(new ArrayList<>());
@@ -178,8 +183,19 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                 pieceRepository.save(newPiece);
                 identity++;
             }
+            return fileHashBuilder.toString(); // 
         }
     }
+
+        // Tính hash cho folder bằng cách nối hash của các file/folder con
+        private String calculateFolderHash(FileOrFolder folder) {
+            StringBuilder folderHashBuilder = new StringBuilder();
+            for (FileOrFolder child : folder.getFileOrFolders()) {
+                folderHashBuilder.append(child.getHashPieces()); // Nối hash của các file/folder con
+                folder.setLength((folder.getLength() == null ? 0 : folder.getLength()) + child.getLength());
+            }
+            return folderHashBuilder.toString();
+        }
 
     // Chuyển byte array sang chuỗi hex
     private String bytesToHex(byte[] bytes) {
