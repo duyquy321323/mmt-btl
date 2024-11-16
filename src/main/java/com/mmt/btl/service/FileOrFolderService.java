@@ -8,6 +8,10 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import com.mmt.btl.response.TorrentResponse;
+
 public interface FileOrFolderService {
     public void upload(HttpServletRequest request, MultipartFile[] files, List<Long> trackerIds) throws NoSuchAlgorithmException, IOException;
+
+    public List<TorrentResponse> getUploadedFile();
 }

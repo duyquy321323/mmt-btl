@@ -1,5 +1,6 @@
 package com.mmt.btl.entity;
 
+import javax.persistence.Column;
 import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
 import javax.persistence.Table;
@@ -22,4 +23,7 @@ import lombok.Setter;
 public class PeerFile {
     @EmbeddedId
     private PeerFileId id;
+
+    @Column(name="type_role")
+    private String typeRole;
 }

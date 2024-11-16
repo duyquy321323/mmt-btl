@@ -8,6 +8,7 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -30,5 +31,10 @@ public class FileOrFolderController {
             @RequestParam("trackerIds") List<Long> trackerIds) throws NoSuchAlgorithmException, IOException {
         fileOrFolderService.upload(request, files, trackerIds);
         return ResponseEntity.status(HttpStatus.OK).build();
+    }
+
+    @GetMapping("/file-uploaded")
+    public ResponseEntity<?> getUploadedFile(){
+        return ResponseEntity.ok(fileOrFolderService.getUploadedFile());
     }
 }

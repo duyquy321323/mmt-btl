@@ -42,7 +42,7 @@ public class FileOrFolder {
     @Column(name="type")
     private String type;
 
-    @Column(name="pieces")
+    @Column(name="pieces", columnDefinition="LONGTEXT")
     private String hashPieces;
 
     @ManyToOne

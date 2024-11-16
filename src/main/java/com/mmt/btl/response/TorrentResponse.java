@@ -14,7 +14,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class TorrentResponse {
     private List<FileOrFolderResponse> fileOrFolders;
-    private List<String> trackerUrl;
+    private List<String> announce;
     private String encoding;
     private Date createDate;
     private String createBy;

@@ -6,6 +6,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
@@ -40,6 +41,7 @@ import com.mmt.btl.repository.PieceRepository;
 import com.mmt.btl.repository.TorrentRepository;
 import com.mmt.btl.repository.TrackerRepository;
 import com.mmt.btl.repository.UserRepository;
+import com.mmt.btl.response.TorrentResponse;
 import com.mmt.btl.service.FileOrFolderService;
 import com.mmt.btl.util.FileOrFolderUtil;
 
@@ -127,10 +129,16 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                     }
                 }
                 fileOrFolder.getPeerFiles().add(PeerFile.builder()
-                        .id(PeerFileId.builder().fileOrFolder(fileOrFolder).peer(currentPeer).build()).build());
+                        .id(PeerFileId.builder().fileOrFolder(fileOrFolder).peer(currentPeer).build()).typeRole("INITIAL_SEEDER").build());
                 filesSave.add(fileOrFolder);
             }
-            // fileOrFolderRepository.saveAll(filesSave);
+
+            byte[] hashByte = FileOrFolderUtil.calculateSHA1(filesSave.getLast().getHashPieces().getBytes());
+            String hashInfo = FileOrFolderUtil.bytesToHex(hashByte);
+            newTorrent.setInfoHash(hashInfo);
+            newTorrent.setCreateBy(userDetails.getUsername() + ": " + userAgent);
+            newTorrent.setCreateDate(new Date());
+            newTorrent.setEncoding(request.getCharacterEncoding());
             torrentRepository.save(newTorrent);
         }
     }
@@ -183,19 +191,19 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                 pieceRepository.save(newPiece);
                 identity++;
             }
-            return fileHashBuilder.toString(); // 
+            return fileHashBuilder.toString(); //
         }
     }
 
-        // Tính hash cho folder bằng cách nối hash của các file/folder con
-        private String calculateFolderHash(FileOrFolder folder) {
-            StringBuilder folderHashBuilder = new StringBuilder();
-            for (FileOrFolder child : folder.getFileOrFolders()) {
-                folderHashBuilder.append(child.getHashPieces()); // Nối hash của các file/folder con
-                folder.setLength((folder.getLength() == null ? 0 : folder.getLength()) + child.getLength());
-            }
-            return folderHashBuilder.toString();
+    // Tính hash cho folder bằng cách nối hash của các file/folder con
+    private String calculateFolderHash(FileOrFolder folder) {
+        StringBuilder folderHashBuilder = new StringBuilder();
+        for (FileOrFolder child : folder.getFileOrFolders()) {
+            folderHashBuilder.append(child.getHashPieces()); // Nối hash của các file/folder con
+            folder.setLength((folder.getLength() == null ? 0 : folder.getLength()) + child.getLength());
         }
+        return folderHashBuilder.toString();
+    }
 
     // Chuyển byte array sang chuỗi hex
     private String bytesToHex(byte[] bytes) {
@@ -209,4 +217,8 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
         return hexString.toString();
     }
 
+    @Override
+    public List<TorrentResponse> getUploadedFile(){
+        
+    }
 }
