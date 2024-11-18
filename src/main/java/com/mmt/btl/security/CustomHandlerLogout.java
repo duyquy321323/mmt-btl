@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
@@ -24,6 +25,7 @@ import lombok.NoArgsConstructor;
 
 @NoArgsConstructor
 @Primary
+@Transactional
 public class CustomHandlerLogout implements LogoutHandler {
 
     @Autowired
@@ -47,9 +49,10 @@ public class CustomHandlerLogout implements LogoutHandler {
                                 .orElseThrow(() -> new MMTNotFoundException()))
                         .userAgent(userAgent)
                         .build());
-                if (peer.isPresent()) {
+                if (peer.isPresent() && peer.get().getStatus()) {
                     Peer newPeer = peer.get();
                     newPeer.setStatus(false);
+                    SecurityContextHolder.clearContext();
                     peerRepository.save(newPeer);
                     return;
                 }

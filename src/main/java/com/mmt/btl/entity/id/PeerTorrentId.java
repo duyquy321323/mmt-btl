@@ -7,8 +7,8 @@ import javax.persistence.JoinColumn;
 import javax.persistence.JoinColumns;
 import javax.persistence.ManyToOne;
 
-import com.mmt.btl.entity.FileOrFolder;
 import com.mmt.btl.entity.Peer;
+import com.mmt.btl.entity.Torrent;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,7 +22,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Setter
 @Getter
-public class PeerFileId implements Serializable {
+public class PeerTorrentId implements Serializable {
     @ManyToOne
     @JoinColumns({
         @JoinColumn(name="user_agent", referencedColumnName = "user_agent"),
@@ -31,6 +31,6 @@ public class PeerFileId implements Serializable {
     private Peer peer;
 
     @ManyToOne
-    @JoinColumn(name="file_or_folder_id")
-    private FileOrFolder fileOrFolder;
+    @JoinColumn(name="torrent_id")
+    private Torrent torrent;
 }

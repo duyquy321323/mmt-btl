@@ -34,7 +34,7 @@ public class FileOrFolderController {
     }
 
     @GetMapping("/file-uploaded")
-    public ResponseEntity<?> getUploadedFile(){
-        return ResponseEntity.ok(fileOrFolderService.getUploadedFile());
+    public ResponseEntity<?> getUploadedFile(HttpServletRequest request){
+        return ResponseEntity.ok(fileOrFolderService.getUploadedFile(request));
     }
 }

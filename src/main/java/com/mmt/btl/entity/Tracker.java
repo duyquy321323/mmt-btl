@@ -29,8 +29,11 @@ public class Tracker {
     @GeneratedValue(strategy=GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name="url_tracker", unique=true)
-    private String url;
+    @Column(name="host_name")
+    private String hostname;
+
+    @Column(name="port")
+    private Long port;
 
     // @OneToMany(mappedBy="tracker", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
     // private List<FileOrFolder> fileOrFolders = new ArrayList<>();

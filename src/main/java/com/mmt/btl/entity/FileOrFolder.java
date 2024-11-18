@@ -27,7 +27,7 @@ import lombok.Setter;
 @Setter
 @Getter
 @Table(name="file_or_folder")
-public class FileOrFolder {
+public class FileOrFolder implements Comparable<FileOrFolder> {
 
     @Id
     @GeneratedValue(strategy=GenerationType.IDENTITY)
@@ -59,10 +59,14 @@ public class FileOrFolder {
     @OneToMany(mappedBy = "id.fileOrFolder", cascade={CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval=true)
     private List<FilesPiece> filesPieces = new ArrayList<>();
 
-    @OneToMany(mappedBy="id.fileOrFolder", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval = true)
-    private List<PeerFile> peerFiles = new ArrayList<>();
-
     // @ManyToOne
     // @JoinColumn(name="tracker_id")
     // private Tracker tracker;
+
+    @Override
+    public int compareTo(FileOrFolder other) {
+        return Long.compare(this.id, other.id);
+    }
+
+
 }

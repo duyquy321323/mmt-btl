@@ -5,7 +5,7 @@ import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
 import javax.persistence.Table;
 
-import com.mmt.btl.entity.id.PeerFileId;
+import com.mmt.btl.entity.id.PeerTorrentId;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,15 +14,15 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name="peer_file")
+@Table(name="peer_torrent")
 @NoArgsConstructor
 @AllArgsConstructor
 @Setter
 @Getter
 @Builder
-public class PeerFile {
+public class PeerTorrent {
     @EmbeddedId
-    private PeerFileId id;
+    private PeerTorrentId id;
 
     @Column(name="type_role")
     private String typeRole;

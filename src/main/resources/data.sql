@@ -27,8 +27,9 @@
 --     next_id BIGINT
 -- );
 
-INSERT INTO tracker(url_tracker) VALUES
-("http://localhost/8001"),
-("http://localhost/8002"),
-("http://localhost/8003"),
-("http://localhost/8004");
+INSERT INTO tracker(host_name, port) VALUES
+("localhost", 8000),
+("localhost", 8001),
+("localhost", 8002),
+("localhost", 8003),
+("localhost", 8004);

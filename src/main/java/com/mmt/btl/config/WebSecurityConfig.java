@@ -69,12 +69,13 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
+        http.headers((header) -> header.frameOptions().disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .authorizeRequests(request -> request
-                        .antMatchers(HttpMethod.POST, "/user/login", "/user/register", "/files/upload")
+                        .antMatchers(HttpMethod.POST, "/user/login", "/user/register", "/files/upload", "/ws/**")
                         .permitAll()
-                        .antMatchers(HttpMethod.GET, "/tracker/all")
+                        .antMatchers(HttpMethod.GET, "/tracker/all", "/files/file-uploaded", "/ws/**")
                         .permitAll()
                         .antMatchers(HttpMethod.POST, "/user/logout")
                         .authenticated()

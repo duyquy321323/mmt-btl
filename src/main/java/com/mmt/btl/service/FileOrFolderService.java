@@ -13,5 +13,5 @@ import com.mmt.btl.response.TorrentResponse;
 public interface FileOrFolderService {
     public void upload(HttpServletRequest request, MultipartFile[] files, List<Long> trackerIds) throws NoSuchAlgorithmException, IOException;
 
-    public List<TorrentResponse> getUploadedFile();
+    public List<TorrentResponse> getUploadedFile(HttpServletRequest request);
 }

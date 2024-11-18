@@ -105,36 +105,36 @@ public class FileOrFolderUtil {
     public static List<FileOrFolder> buildFileTree(MultipartFile[] multipartFiles) {
         Map<String, Object> root = new HashMap<>();
         List<FileOrFolder> fileOrFolders = new ArrayList<>();
-    
+
         for (MultipartFile path : multipartFiles) {
             String[] parts = path.getOriginalFilename().split("/"); // Tách đường dẫn theo dấu "/"
             Map<String, Object> current = root;
             FileOrFolder parentFolder = null;
-    
+
             for (int i = 0; i < parts.length; i++) {
                 String part = parts[i];
                 FileOrFolder fileOrFolder;
-    
+
                 // Kiểm tra xem phần hiện tại đã tồn tại hay chưa
                 if (i == parts.length - 1) {
                     // Nếu là phần tử cuối, thêm tên file vào
                     fileOrFolder = FileOrFolder.builder()
-                        .fileName(part)
-                        .type("FILE")
-                        .fileOrFolder(parentFolder)
-                        .build();
+                            .fileName(part)
+                            .type("FILE")
+                            .fileOrFolder(parentFolder)
+                            .build();
                     current.putIfAbsent(part, part);
                     fileOrFolders.add(fileOrFolder);
                 } else {
                     // Nếu là thư mục, chỉ thêm nếu chưa tồn tại
                     if (!current.containsKey(part)) {
                         fileOrFolder = FileOrFolder.builder()
-                            .fileName(part)
-                            .type("FOLDER")
-                            .fileOrFolder(parentFolder)
-                            .build();
+                                .fileName(part)
+                                .type("FOLDER")
+                                .fileOrFolder(parentFolder)
+                                .build();
                         fileOrFolders.add(fileOrFolder);
-                        
+
                         // Thêm map để lưu các file/thư mục con trong thư mục mới
                         current.put(part, new HashMap<String, Object>());
                     } else {
@@ -146,19 +146,91 @@ public class FileOrFolderUtil {
                 }
             }
         }
-    
+
         return fileOrFolders;
     }
-    
-    // Hàm trợ giúp để tìm đối tượng thư mục đã tồn tại với tên và parentFolder nhất định
-    private static FileOrFolder findExistingFolder(List<FileOrFolder> fileOrFolders, String part, FileOrFolder parentFolder) {
+
+    // Hàm trợ giúp để tìm đối tượng thư mục đã tồn tại với tên và parentFolder nhất
+    // định
+    private static FileOrFolder findExistingFolder(List<FileOrFolder> fileOrFolders, String part,
+            FileOrFolder parentFolder) {
         return fileOrFolders.stream()
-            .filter(f -> f.getFileName().equals(part)
-                    && (f.getFileOrFolder() == parentFolder || 
-                        (f.getFileOrFolder() != null && f.getFileOrFolder().equals(parentFolder)))
-                    && f.getType().equals("FOLDER"))
-            .findFirst()
-            .orElse(null);
+                .filter(f -> f.getFileName().equals(part)
+                        && (f.getFileOrFolder() == parentFolder ||
+                                (f.getFileOrFolder() != null && f.getFileOrFolder().equals(parentFolder)))
+                        && f.getType().equals("FOLDER"))
+                .findFirst()
+                .orElse(null);
     }
-    
+
+    public static String getPath(FileOrFolder file){
+        if(file == null) return "";
+        String path = file.getFileName();
+        FileOrFolder next = file.getFileOrFolder();
+        while(next != null){
+            path = next.getFileName() + "/" + path;
+            next = next.getFileOrFolder();
+        }
+        return path;
+    }
+
+    // Hàm tạo cây thư mục từ danh sách các đối tượng FileOrFolder
+    public static Map<String, Object> buildDirectoryTree(List<FileOrFolder> fileNodes) {
+        Map<String, Object> tree = new HashMap<>();
+        Map<String, Map<String, Object>> folderMap = new HashMap<>();
+
+        // Tạo thư mục gốc (root)
+        tree.put("name", "root");
+        tree.put("type", "FOLDER");
+        tree.put("children", new ArrayList<>());
+
+        // Duyệt qua từng fileNode để xây dựng cây thư mục
+        for (FileOrFolder fileNode : fileNodes.reversed()) {
+            String parentPath = getPath(fileNode.getFileOrFolder());
+            String nodeName = fileNode.getFileName();
+
+            // Tạo một node mới cho file hoặc thư mục
+            Map<String, Object> node = new HashMap<>();
+            node.put("path", fileNode.getFileOrFolder() != null? (parentPath + "/" + nodeName) : nodeName);
+            node.put("name", nodeName);
+            node.put("type", fileNode.getType());
+            node.put("size", fileNode.getLength());
+            node.put("children", new ArrayList<>());
+
+            // Nếu là thư mục, cần tạo thêm vào thư mục cha
+            if (fileNode.getType().equals("FOLDER")) {
+                // Ghi nhớ thư mục vào folderMap
+                folderMap.put(fileNode.getFileOrFolder() != null? (parentPath + "/" + nodeName) : nodeName, node);
+
+                // Kiểm tra xem thư mục cha đã có trong cây chưa
+                if (!parentPath.isEmpty()) {
+                    Map<String, Object> parentNode = folderMap.get(parentPath);
+                    if (parentNode != null) {
+                        // Nếu thư mục cha tồn tại, thêm thư mục con vào
+                        List<Object> children = (List<Object>) parentNode.get("children");
+                        children.add(node);
+                    }
+                } else {
+                    // Nếu không có thư mục cha (thư mục gốc), thêm vào cây thư mục gốc
+                    List<Object> rootChildren = (List<Object>) tree.get("children");
+                    rootChildren.add(node);
+                }
+            } else { // Nếu là file
+                if (parentPath.equals("")) {
+                    // Nếu không có thư mục cha (path rỗng), thêm vào cây thư mục gốc
+                    List<Object> rootChildren = (List<Object>) tree.get("children");
+                    rootChildren.add(node);
+                } else {
+                    // Nếu có thư mục cha, tìm thư mục cha đó và thêm file vào thư mục đó
+                    Map<String, Object> parentNode = folderMap.get(parentPath);
+                    if (parentNode != null) {
+                        List<Object> children = (List<Object>) parentNode.get("children");
+                        children.add(node);
+                    }
+                }
+            }
+        }
+
+        return tree;
+    }
 }

@@ -48,4 +48,7 @@ public class Torrent {
 
     @OneToMany(mappedBy = "id.torrent", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval = true)
     private List<TorrentTracker> torrentTrackers = new ArrayList<>();
+
+    @OneToMany(mappedBy = "id.torrent", cascade = {CascadeType.PERSIST,CascadeType.MERGE}, orphanRemoval=true)
+    private List<PeerTorrent> peerTorrents = new ArrayList<>();
 }
