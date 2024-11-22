@@ -10,10 +10,8 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
-import javax.persistence.Lob;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
-import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
 import lombok.AllArgsConstructor;
@@ -29,7 +27,8 @@ import lombok.Setter;
 @Setter
 @Getter
 @Table(name="file_or_folder")
-public class FileOrFolder {
+public class FileOrFolder implements Comparable<FileOrFolder> {
+
     @Id
     @GeneratedValue(strategy=GenerationType.IDENTITY)
     private Long id;
@@ -43,23 +42,31 @@ public class FileOrFolder {
     @Column(name="type")
     private String type;
 
-    @Column(name="pieces")
+    @Column(name="pieces", columnDefinition="LONGTEXT")
     private String hashPieces;
 
-    @OneToOne(mappedBy="fileOrFolder", cascade = {CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
+    @ManyToOne
+    @JoinColumn(name="torrent_id")
     private Torrent torrent;
 
-    @OneToMany(mappedBy="fileOrFolder", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval=true)
+    @OneToMany(mappedBy="fileOrFolder", cascade = {CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
     private List<FileOrFolder> fileOrFolders = new ArrayList<>();
 
     @ManyToOne
     @JoinColumn(name="folder_parent")
     private FileOrFolder fileOrFolder;
 
-    @OneToMany(mappedBy="id.fileOrFolder", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
-    private List<Piece> pieces = new ArrayList<>();
+    @OneToMany(mappedBy = "id.fileOrFolder", cascade={CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval=true)
+    private List<FilesPiece> filesPieces = new ArrayList<>();
 
-    @ManyToOne
-    @JoinColumn(name="tracker_id")
-    private Tracker tracker;
+    // @ManyToOne
+    // @JoinColumn(name="tracker_id")
+    // private Tracker tracker;
+
+    @Override
+    public int compareTo(FileOrFolder other) {
+        return Long.compare(this.id, other.id);
+    }
+
+
 }

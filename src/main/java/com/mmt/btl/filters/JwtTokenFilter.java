@@ -35,7 +35,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-     final String authHeader = request.getHeader("Authorization");
+    String authHeader = request.getHeader("Authorization");
+     if(authHeader == null){
+        authHeader = request.getParameter("token");
+     }
         if (request.getServletPath().contains("/user/login") && request.getMethod().equals("POST")) {
             if (authHeader == null)
                 filterChain.doFilter(request, response);
@@ -75,7 +78,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 Pair.of("/user/register", "POST"),
                 Pair.of("/swagger-ui", "GET"),
                 Pair.of("/v3/api-docs", "GET"),
+                Pair.of("/ws/info", "GET"),
                 Pair.of("/API license URL", "GET"));
+                String path = request.getServletPath();
+                System.out.println(path);
         for (Pair<String, String> bypassToken : bypassTokens) {
             if (request.getServletPath().contains(bypassToken.getFirst())
                     && request.getMethod().equals(bypassToken.getSecond())) {

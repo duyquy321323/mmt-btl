@@ -6,6 +6,7 @@ import java.util.List;
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -28,12 +29,15 @@ public class User {
     @GeneratedValue(strategy=GenerationType.IDENTITY)
     private Long id;
     
-    @Column(name="username")
+    @Column(name="username", unique=true)
     private String username;
 
     @Column(name="password")
     private String password;
 
-    @OneToMany(mappedBy="user", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval=true)
+    @Column(name="email")
+    private String email;
+
+    @OneToMany(mappedBy="id.user", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval=true)
     private List<Peer> peers = new ArrayList<>();
 }

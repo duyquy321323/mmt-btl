@@ -5,13 +5,15 @@ import java.util.List;
 
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
+import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
+import javax.persistence.FetchType;
 import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
+import javax.persistence.JoinTable;
+import javax.persistence.ManyToMany;
 import javax.persistence.OneToMany;
+
+import com.mmt.btl.entity.id.PeerId;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,17 +28,18 @@ import lombok.Setter;
 @Setter
 @Getter
 public class Peer {
-    @Id
-    @GeneratedValue(strategy=GenerationType.IDENTITY)
-    private Long id;
+    @EmbeddedId
+    private PeerId id;
 
-    @Column(name="user_agent")
-    private String userAgent;
+    @Column(name="status")
+    private Boolean status;
 
     @OneToMany(mappedBy="id.peer", cascade = {CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval = true)
     private List<PeerPiece> peerPieces = new ArrayList<>();
 
-    @ManyToOne
-    @JoinColumn(name="user_id")
-    private User user;
+    @OneToMany(mappedBy = "id.peer", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval = true)
+    private List<PeerTorrent> peerTorrents = new ArrayList<>();
+
+    @OneToMany(mappedBy = "id.peer", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval=true)
+    private List<PeerTracker> peerTrackers = new ArrayList<>();
 }

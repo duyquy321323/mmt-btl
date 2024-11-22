@@ -7,5 +7,6 @@ import lombok.Setter;
 @Setter
 public class TrackerResponse {
     private Long id;
-    private String url;
+    private String hostname;
+    private Long port;
 }
