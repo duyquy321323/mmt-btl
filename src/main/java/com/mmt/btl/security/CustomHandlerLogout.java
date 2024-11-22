@@ -49,12 +49,15 @@ public class CustomHandlerLogout implements LogoutHandler {
                                 .orElseThrow(() -> new MMTNotFoundException()))
                         .userAgent(userAgent)
                         .build());
-                if (peer.isPresent() && peer.get().getStatus()) {
-                    Peer newPeer = peer.get();
-                    newPeer.setStatus(false);
-                    SecurityContextHolder.clearContext();
-                    peerRepository.save(newPeer);
-                    return;
+                if(peer.isPresent()){
+                    peer.get().getPeerTrackers().clear();
+                    if (peer.get().getStatus()) {
+                        Peer newPeer = peer.get();
+                        newPeer.setStatus(false);
+                        SecurityContextHolder.clearContext();
+                        peerRepository.save(newPeer);
+                        return;
+                    }
                 }
             }
         }

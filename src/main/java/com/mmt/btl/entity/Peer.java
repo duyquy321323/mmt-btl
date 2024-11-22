@@ -7,6 +7,10 @@ import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
+import javax.persistence.JoinColumn;
+import javax.persistence.JoinTable;
+import javax.persistence.ManyToMany;
 import javax.persistence.OneToMany;
 
 import com.mmt.btl.entity.id.PeerId;
@@ -35,4 +39,7 @@ public class Peer {
 
     @OneToMany(mappedBy = "id.peer", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval = true)
     private List<PeerTorrent> peerTorrents = new ArrayList<>();
+
+    @OneToMany(mappedBy = "id.peer", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval=true)
+    private List<PeerTracker> peerTrackers = new ArrayList<>();
 }

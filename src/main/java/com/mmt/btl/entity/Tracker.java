@@ -35,8 +35,8 @@ public class Tracker {
     @Column(name="port")
     private Long port;
 
-    // @OneToMany(mappedBy="tracker", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval=true)
-    // private List<FileOrFolder> fileOrFolders = new ArrayList<>();
+    @OneToMany(mappedBy = "id.tracker", cascade={CascadeType.MERGE,CascadeType.PERSIST}, orphanRemoval=true)
+    private List<PeerTracker> peerTrackers = new ArrayList<>();
 
     @OneToMany(mappedBy="id.tracker", cascade={CascadeType.MERGE, CascadeType.PERSIST}, orphanRemoval = true)
     private List<TorrentTracker> torrentTrackers = new ArrayList<>();

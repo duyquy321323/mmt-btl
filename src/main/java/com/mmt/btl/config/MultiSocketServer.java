@@ -49,77 +49,77 @@ package com.mmt.btl.config;
 //     }
 // }
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
+// import java.io.BufferedReader;
+// import java.io.IOException;
+// import java.io.InputStreamReader;
+// import java.io.PrintWriter;
+// import java.net.ServerSocket;
+// import java.net.Socket;
+// import java.util.HashMap;
+// import java.util.List;
+// import java.util.Map;
+// import java.util.concurrent.ExecutorService;
+// import java.util.concurrent.Executors;
+// import java.util.stream.Collectors;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+// import org.springframework.context.annotation.Bean;
+// import org.springframework.context.annotation.Configuration;
 
-import com.mmt.btl.repository.TrackerRepository;
+// import com.mmt.btl.repository.TrackerRepository;
 
-import lombok.RequiredArgsConstructor;
+// import lombok.RequiredArgsConstructor;
 
-@RequiredArgsConstructor
-@Configuration
-public class MultiSocketServer {
+// @RequiredArgsConstructor
+// @Configuration
+// public class MultiSocketServer {
 
-    final private TrackerRepository trackerRepository;
+//     final private TrackerRepository trackerRepository;
 
-    // Lưu danh sách PrintWriter của từng cổng
-    private final static Map<Integer, PrintWriter> clientWriters = new HashMap<>();
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
+//     // Lưu danh sách PrintWriter của từng cổng
+//     private final static Map<Integer, PrintWriter> clientWriters = new HashMap<>();
+//     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
-    @Bean
-    public void createSocket() {
-        List<Integer> ports = trackerRepository.findAll()
-                .stream()
-                .map(it -> Integer.valueOf(it.getPort().toString()))
-                .collect(Collectors.toList());
-        String hostname = "localhost";
+//     @Bean
+//     public void createSocket() {
+//         List<Integer> ports = trackerRepository.findAll()
+//                 .stream()
+//                 .map(it -> Integer.valueOf(it.getPort().toString()))
+//                 .collect(Collectors.toList());
+//         String hostname = "localhost";
 
-        for (int port : ports) {
-            executorService.submit(() -> runServer(port, hostname));
-        }
-    }
+//         for (int port : ports) {
+//             executorService.submit(() -> runServer(port, hostname));
+//         }
+//     }
 
-    private void runServer(int port, String hostname) {
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Tracker đang chạy trên " + hostname + ":" + port);
+//     private void runServer(int port, String hostname) {
+//         try (ServerSocket serverSocket = new ServerSocket(port)) {
+//             System.out.println("Tracker đang chạy trên " + hostname + ":" + port);
 
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
-                System.out.println("Client kết nối trên cổng " + port);
+//             while (true) {
+//                 Socket clientSocket = serverSocket.accept();
+//                 System.out.println("Client kết nối trên cổng " + port);
 
-                new Thread(() -> handleClient(clientSocket, port)).start();
-            }
-        } catch (IOException e) {
-            System.err.println("Lỗi ở cổng " + port + ": " + e.getMessage());
-        }
-    }
+//                 new Thread(() -> handleClient(clientSocket, port)).start();
+//             }
+//         } catch (IOException e) {
+//             System.err.println("Lỗi ở cổng " + port + ": " + e.getMessage());
+//         }
+//     }
 
-    private void handleClient(Socket clientSocket, int port) {
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-             PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
-            String message;
-            while ((message = in.readLine()) != null) {
-                System.out.println("Client trên cổng " + port + " gửi: " + message);
-                clientWriters.put(port, out);
-                out.println("Tracker trên cổng " + port + " đã nhận: " + message);
-            }
-        } catch (IOException e) {
-            System.err.println("Lỗi khi xử lý client trên cổng " + port + ": " + e.getMessage());
-        }
-    }
+//     private void handleClient(Socket clientSocket, int port) {
+//         try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+//              PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true)) {
+//             String message;
+//             while ((message = in.readLine()) != null) {
+//                 System.out.println("Client trên cổng " + port + " gửi: " + message);
+//                 clientWriters.put(port, out);
+//                 out.println("Tracker trên cổng " + port + " đã nhận: " + message);
+//             }
+//         } catch (IOException e) {
+//             System.err.println("Lỗi khi xử lý client trên cổng " + port + ": " + e.getMessage());
+//         }
+//     }
 
     // public void createSocket() {
 
@@ -170,7 +170,7 @@ public class MultiSocketServer {
     // }
 
     // Truy xuất danh sách PrintWriter của một cổng
-    public static PrintWriter getWritersForPort(int port) {
-        return clientWriters.get(port);
-    }
-}
+//     public static PrintWriter getWritersForPort(int port) {
+//         return clientWriters.get(port);
+//     }
+// }

@@ -10,11 +10,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.mmt.btl.request.DownloadRequest;
 import com.mmt.btl.service.FileOrFolderService;
 
 import lombok.RequiredArgsConstructor;
@@ -36,5 +38,21 @@ public class FileOrFolderController {
     @GetMapping("/file-uploaded")
     public ResponseEntity<?> getUploadedFile(HttpServletRequest request){
         return ResponseEntity.ok(fileOrFolderService.getUploadedFile(request));
+    }
+
+    @GetMapping("/file-download")
+    public ResponseEntity<?> getDownloadFile(HttpServletRequest request){
+        return ResponseEntity.ok(fileOrFolderService.getDownloadFile(request));
+    }
+
+    @PostMapping("/download")
+    public ResponseEntity<?> downloadFiles(HttpServletRequest request, @RequestBody DownloadRequest downloadRequest){
+        fileOrFolderService.download(request, downloadRequest);
+        return ResponseEntity.status(HttpStatus.OK).build();
+    }
+
+    @GetMapping("/file-download-history")
+    public ResponseEntity<?> getHistoryDownloadFile(HttpServletRequest request){
+        return ResponseEntity.ok(fileOrFolderService.getDownloadHistoryFile(request));
     }
 }

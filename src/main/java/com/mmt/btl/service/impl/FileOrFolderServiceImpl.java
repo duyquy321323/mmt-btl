@@ -1,8 +1,10 @@
 package com.mmt.btl.service.impl;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintWriter;
+import java.io.RandomAccessFile;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -10,11 +12,15 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.transaction.Transactional;
 
+import org.springframework.messaging.MessagingException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,13 +28,14 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.mmt.btl.config.MultiSocketServer;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mmt.btl.controller.WebSocketController;
 import com.mmt.btl.entity.FileOrFolder;
 import com.mmt.btl.entity.FilesPiece;
 import com.mmt.btl.entity.Peer;
 import com.mmt.btl.entity.PeerPiece;
 import com.mmt.btl.entity.PeerTorrent;
+import com.mmt.btl.entity.PeerTracker;
 import com.mmt.btl.entity.Piece;
 import com.mmt.btl.entity.Torrent;
 import com.mmt.btl.entity.TorrentTracker;
@@ -49,10 +56,13 @@ import com.mmt.btl.repository.PieceRepository;
 import com.mmt.btl.repository.TorrentRepository;
 import com.mmt.btl.repository.TrackerRepository;
 import com.mmt.btl.repository.UserRepository;
+import com.mmt.btl.request.DownloadRequest;
 import com.mmt.btl.response.FileOrFolderResponse;
 import com.mmt.btl.response.TorrentResponse;
 import com.mmt.btl.service.FileOrFolderService;
+import com.mmt.btl.util.ChunkQueueManager;
 import com.mmt.btl.util.FileOrFolderUtil;
+import com.mmt.btl.util.PeerDownloader;
 
 import lombok.RequiredArgsConstructor;
 
@@ -75,7 +85,11 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
 
     final private TrackerRepository trackerRepository;
 
+    final private WebSocketController webSocketController;
+
     final private FileOrFolderResponseModelMapper fileOrFolderResponseModelMapper;
+
+    final private PeerDownloader peerDownloader;
 
     @SuppressWarnings("removal")
     @Override
@@ -84,7 +98,7 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
             throws NoSuchAlgorithmException, IOException {
         String userAgent = request.getHeader("User-Agent");
         UserDetails userDetails = null;
-        Peer currentPeer = null;
+        Peer peerStart = null;
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.isAuthenticated()
                 && !(authentication instanceof AnonymousAuthenticationToken)) {
@@ -94,17 +108,16 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
             User user = userRepository.findByUsername(userDetails.getUsername())
                     .orElseThrow(() -> new MMTNotFoundException());
             if (user != null && userAgent != null) {
-                currentPeer = peerRepository.findById(PeerId.builder().user(user).userAgent(userAgent).build())
+                peerStart = peerRepository.findById(PeerId.builder().user(user).userAgent(userAgent).build())
                         .orElseThrow(() -> new MMTNotFoundException("Peer Not Found...!"));
             }
         }
-        String peerIdStr = (currentPeer.getId().getUser().getUsername() + ": " + currentPeer.getId().getUserAgent());
+        final Peer currentPeer = peerStart;
         if (files.length > 0) {
             List<FileOrFolder> filesTree = FileOrFolderUtil.buildFileTree(files);
             List<FileOrFolder> filesSave = new ArrayList<>();
 
             List<Tracker> trackers = trackerRepository.findByIdIn(trackerIds);
-            List<PrintWriter> loggerTrackers = trackers.stream().map(item -> MultiSocketServer.getWritersForPort(Integer.parseInt(item.getPort().toString()))).collect(Collectors.toList());
             List<TorrentTracker> torrentTrackers = new ArrayList<>();
             List<PeerTorrent> peerTorrents = new ArrayList<>();
 
@@ -138,7 +151,7 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                     }
                     MultipartFile multipartFile = findMultipartFileByName(files, filename);
                     fileOrFolder.setLength(multipartFile.getSize());
-                    String fileHash = calculateFileHash(multipartFile, fileOrFolder, currentPeer, loggerTrackers);
+                    String fileHash = calculateFileHash(multipartFile, fileOrFolder, currentPeer, trackers);
                     fileOrFolder.setHashPieces(fileHash); // Lưu hash của file vào đối tượng FileOrFolder
                     if (fileOrFolder.getFileOrFolder() != null) {
                         fileOrFolder.getFileOrFolder().getFileOrFolders().add(fileOrFolder);
@@ -151,162 +164,137 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                     }
                 }
                 filesSave.add(fileOrFolder);
-                // String log = uploadFile(peerIdStr, filesTree.get(i));
-                // for (Tracker tracker : trackers) {
-                //     webSocketController.sendMessageTrackerToClients(log.substring(0, 22) + " [Tracker " + "http://" + tracker.getHostName() + ":" + tracker.getPort() + "]\n" + log.substring(22));
-                // }
             }
 
-            byte[] hashByte = FileOrFolderUtil.calculateSHA1(filesSave.getLast().getHashPieces().getBytes());
-            String hashInfo = FileOrFolderUtil.bytesToHex(hashByte);
-            newTorrent.setInfoHash(hashInfo);
+            for (Tracker tracker : trackers) {
+                if (tracker.getPeerTrackers().stream().filter(it -> it.getId().getPeer().getId().getUser().getUsername()
+                        .equals(currentPeer.getId().getUser().getUsername())
+                        && it.getId().getPeer().getId().getUserAgent().equals(currentPeer.getId().getUserAgent()))
+                        .collect(Collectors.toList()).isEmpty()) {
+                    for (PeerTorrent peerTorrent1 : currentPeer.getPeerTorrents()) {
+                        FileOrFolder lastFile = peerTorrent1.getId().getTorrent().getFileOrFolders().getLast();
+                        if (lastFile.getType().equals("FILE")) {
+                            for (FileOrFolder file : peerTorrent1.getId().getTorrent().getFileOrFolders()) {
+                                String log = logger(
+                                        currentPeer.getId().getUser().getUsername() + ": "
+                                                + currentPeer.getId().getUserAgent(),
+                                        file, Double.parseDouble(String.valueOf(file.getLength())) / 1024, "Sharing",
+                                        null, null, peerTorrent1.getTypeRole());
+                                webSocketController.sendMessageTrackerToClients(log, tracker.getPort());
+                            }
+                        } else {
+                            String log = logger(
+                                    currentPeer.getId().getUser().getUsername() + ": "
+                                            + currentPeer.getId().getUserAgent(),
+                                    lastFile, Double.parseDouble(String.valueOf(lastFile.getLength())) / 1024,
+                                    "Sharing", null, null, peerTorrent1.getTypeRole());
+                            webSocketController.sendMessageTrackerToClients(log, tracker.getPort());
+                        }
+                    }
+                }
+                FileOrFolder lastFile = filesSave.getLast();
+                if (lastFile.getType().equals("FILE")) {
+                    for (FileOrFolder file : filesSave) {
+                        String log = logger(
+                                currentPeer.getId().getUser().getUsername() + ": " + currentPeer.getId().getUserAgent(),
+                                file, Double.parseDouble(String.valueOf(file.getLength())) / 1024, "Sharing", null,
+                                null, "INITIAL_SEEDER");
+                        webSocketController.sendMessageTrackerToClients(log, tracker.getPort());
+                    }
+                } else {
+                    String log = logger(
+                            currentPeer.getId().getUser().getUsername() + ": " + currentPeer.getId().getUserAgent(),
+                            lastFile, Double.parseDouble(String.valueOf(lastFile.getLength())) / 1024, "Sharing", null,
+                            null, "INITIAL_SEEDER");
+                    webSocketController.sendMessageTrackerToClients(log, tracker.getPort());
+                }
+            }
+
             newTorrent.setCreateBy(userDetails.getUsername() + ": " + userAgent);
             newTorrent.setCreateDate(new Date());
+            byte[] hashByte = FileOrFolderUtil.calculateSHA1(
+                    (filesSave.getLast().getHashPieces() + newTorrent.getCreateDate().toString()).getBytes());
+            String hashInfo = FileOrFolderUtil.bytesToHex(hashByte);
+            newTorrent.setInfoHash(hashInfo);
             newTorrent.setEncoding(request.getCharacterEncoding());
             torrentRepository.save(newTorrent);
-            // logOfTrackerUpload(request, trackers, filesSave, currentPeer);
+
+            FileOrFolder lastFile = filesSave.getLast();
+                if (lastFile.getType().equals("FILE")) {
+                    for (FileOrFolder file : filesSave) {
+                        String log = logger(
+                                currentPeer.getId().getUser().getUsername() + ": " + currentPeer.getId().getUserAgent(),
+                                file, Double.parseDouble(String.valueOf(file.getLength())) / 1024, "Finished upload", null,
+                                null, null);
+                        webSocketController.sendMessageServerToClients(log, userDetails.getUsername(), userAgent);
+                    }
+                } else {
+                    String log = logger(
+                                currentPeer.getId().getUser().getUsername() + ": " + currentPeer.getId().getUserAgent(),
+                                lastFile, Double.parseDouble(String.valueOf(lastFile.getLength())) / 1024, "Finished upload", null,
+                                null, null);
+                            webSocketController.sendMessageServerToClients(log, userDetails.getUsername(), userAgent);
+                }
         }
     }
 
-    // Hàm gửi tin nhắn về client của Tracker khi Upload file / folder
-    // public void logOfTrackerUpload(HttpServletRequest request, List<Tracker> trackers, List<FileOrFolder> fileOrFolders,
-    //         Peer peer) {
-    //     for (Tracker tracker : trackers) {
-    //         fileOrFolders.sort(null);
-    //         Map<String, Object> tree = FileOrFolderUtil.buildDirectoryTree(fileOrFolders);
-    //         String typeTree = getMultipartFileType((List<Map<String, Object>>) tree.get("children"));
-    //         String peerIdStr = (peer.getId().getUser().getUsername() + ": " + peer.getId().getUserAgent());
+    public static String capitalizeFirstLetter(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        // Chuyển chữ cái đầu thành chữ hoa và phần còn lại giữ nguyên
+        return input.substring(0, 1).toUpperCase() + input.substring(1).toLowerCase();
+    }
 
-    //         String log = uploadFile(peerIdStr, fileOrFolders.get(0));
-
-    //         switch (typeTree) {
-    //             case "SINGLE_FILE" -> {
-    //                 log = uploadFile(peerIdStr, fileOrFolders.get(0));
-    //             }
-    //             case "MULTIPLE_FILE" -> {
-    //                 log = uploadFiles(peerIdStr, fileOrFolders);
-    //             }
-    //             case "SINGLE_FOLDER" -> {
-    //                 log = uploadFolder(peerIdStr, fileOrFolders.getLast().getFileName(), fileOrFolders);
-    //             }
-    //             case "FOLDER_OF_FOLDER" -> {
-    //                 String ipAddress = request.getHeader("X-Forwarded-For");
-    //                 if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-    //                     ipAddress = request.getRemoteAddr();
-    //                 }
-    //                 log = uploadNestedFolder(peerIdStr, ipAddress, request.getRemotePort(), "fake");
-    //             }
-    //             default -> {
-    //             }
-    //         }
-    //         String start = log.substring(0, 22) + "\nannounce: " + tracker.getUrl() + "\n" + log.substring(22);
-    //         webSocketController.sendMessageTrackerToClients(start);
-    //     }
-    // }
-
-    // Hàm check loại file mà người dùng up lên
-    // private String getMultipartFileType(List<Map<String, Object>> trees) {
-    //     if (trees.size() == 1 && trees.get(0).get("type").equals("FILE"))
-    //         return "SINGLE_FILE";
-    //     else if (trees.get(0).get("type").equals("FILE"))
-    //         return "MULTIPLE_FILE";
-    //     for (Map<String, Object> tree : trees) {
-    //         for (Map<String, Object> subTree : (List<Map<String, Object>>) tree.get("children")) {
-    //             if (subTree.get("type").equals("FOLDER")) {
-    //                 return "FOLDER_OF_FOLDER";
-    //             }
-    //         }
-    //     }
-    //     return "SINGLE_FOLDER";
-    // }
-
-    // Log khi upload 1 file
-    public String logger(String peerId, FileOrFolder fileOrFolder, double fileSize, String typeLog, String part) {
+    // khi upload 1 file
+    public static String logger(String peerId, FileOrFolder fileOrFolder, double fileSize, String typeLog,
+            String part, String peerSeeding, String typeRole) {
         StringBuilder logBuilder = new StringBuilder();
         String timestamp = getCurrentTimestamp();
         String fileName = FileOrFolderUtil.getPath(fileOrFolder);
-        // String hash = fileOrFolder.getHashPieces(); // Giả sử bạn có một phương thức tạo hash cho file
-        // String status = "SUCCESS"; // Giả sử upload thành công
-
-        // Thêm log cho file
-        if((fileOrFolder.getLength() / 1024) == fileSize){
-        logBuilder.append(String.format(
-                "[%s] Peer %s: [peer_id: %s, File: \"%s\", Size: %f.3KB]",
-                timestamp, typeLog, peerId, fileName, fileSize));
-        }else{
+        if (typeLog.equals("Upload")) {
+            if ((Double.parseDouble(String.valueOf(fileOrFolder.getLength())) / 1024) == fileSize) {
+                logBuilder.append(String.format(
+                        "[%s] Peer %s: [peer_id: %s, File: \"%s\", Size: %.3fKB]",
+                        timestamp, typeLog, peerId, fileName, fileSize));
+            } else {
+                logBuilder.append(String.format(
+                        "[%s] Peer %s: [peer_id: %s, File: \"%s\", Part: %s, Size: %.3fKB]",
+                        timestamp, typeLog, peerId, fileName, part, fileSize));
+            }
+        } else if (typeLog.equals("Joined") || typeLog.equals("Disconnected")) {
             logBuilder.append(String.format(
-                "[%s] Peer %s: [peer_id: %s, File: \"%s\", Part: %s, Size: %f.3KB]",
-                timestamp, typeLog, peerId, fileName, part, fileSize));
+                    "[%s] Peer %s: [peer_id: %s]",
+                    timestamp, typeLog, peerId));
+        } else if (typeLog.equals("Download")) {
+            if ((Double.parseDouble(String.valueOf(fileOrFolder.getLength())) / 1024) == fileSize) {
+                logBuilder.append(String.format(
+                        "[%s] Peer %sing: [peer_id: %s, File: \"%s\", Size: %.3fKB]\n%s: [peer_id: %s]",
+                        timestamp, typeLog, peerId, fileName, fileSize, capitalizeFirstLetter(typeRole), peerSeeding));
+            } else {
+                logBuilder.append(String.format(
+                        "[%s] Peer %sing: [peer_id: %s, File: \"%s\", Part: %s, Size: %.3fKB]\n%s: [peer_id: %s]",
+                        timestamp, typeLog, peerId, fileName, part, fileSize, capitalizeFirstLetter(typeRole),
+                        peerSeeding));
+            }
+        } else if (typeLog.equals("Sharing")) {
+            logBuilder.append(String.format(
+                    "[%s] %s file: [peer_id: %s, File: \"%s\", Size: %.3fKB] as %s",
+                    timestamp, typeLog, peerId, fileName, fileSize, capitalizeFirstLetter(typeRole)));
+        } else if(typeLog.equals("Finished download")){
+            logBuilder.append(String.format(
+                        "[%s] Peer %s: [peer_id: %s, %s: \"%s\", Size: %.3fKB]",
+                        timestamp, typeLog, peerId, capitalizeFirstLetter(fileOrFolder.getType()), fileName, fileSize));
+        } else if(typeLog.equals("Finished upload")){
+            logBuilder.append(String.format(
+                        "[%s] Peer %s: [peer_id: %s, %s: \"%s\", Size: %.3fKB]",
+                        timestamp, typeLog, peerId,capitalizeFirstLetter(fileOrFolder.getType()), fileName,  fileSize));
         }
         return logBuilder.toString();
     }
 
-    // Log khi upload nhiều file
-    // public String uploadFiles(String peerId, List<FileOrFolder> files) {
-    //     StringBuilder logBuilder = new StringBuilder();
-    //     String timestamp = getCurrentTimestamp();
-    //     logBuilder.append(String.format("[%s] Peer ID: %s uploaded multiple files:\n", timestamp, peerId));
-
-    //     // Duyệt qua từng file và tạo log
-    //     for (FileOrFolder file : files) {
-    //         String fileName = file.getFileName();
-    //         long fileSize = file.getLength(); // Size in KB
-    //         String hash = file.getHashPieces();
-    //         String status = "SUCCESS"; // Giả sử upload thành công
-    //         logBuilder.append(
-    //                 String.format("    - \"%s\" (%dKB), Hash: %s, Status: %s\n", fileName, fileSize, hash, status));
-    //     }
-
-    //     logBuilder.append("Tracker Response: Metadata for " + files.size() + " files saved.\n");
-
-    //     return logBuilder.toString();
-    // }
-
-    // // Log khi upload 1 thư mục
-    // public String uploadFolder(String peerId, String folderName, List<FileOrFolder> files) {
-    //     StringBuilder logBuilder = new StringBuilder();
-    //     String timestamp = getCurrentTimestamp();
-    //     int countFile = 0;
-    //     for (FileOrFolder file : files) {
-    //         if (file.getType().equals("FILE"))
-    //             countFile++;
-    //     }
-    //     logBuilder.append(String.format("[%s] Peer ID: %s uploaded folder \"%s\" containing %d files:\n",
-    //             timestamp, peerId, folderName, countFile));
-
-    //     // Duyệt qua từng file trong thư mục và tạo log
-    //     for (FileOrFolder file : files) {
-    //         if (file.getType().equals("FOLDER"))
-    //             continue;
-    //         String fileName = FileOrFolderUtil.getPath(file);
-    //         long fileSize = file.getLength(); // Size in KB
-    //         String hash = file.getHashPieces();
-    //         String status = "SUCCESS"; // Giả sử upload thành công
-    //         logBuilder.append(
-    //                 String.format("    - \"%s\" (%dKB), Hash: %s, Status: %s\n", fileName, fileSize, hash, status));
-    //     }
-
-    //     logBuilder.append(String.format(
-    //             "Tracker Response: Metadata for folder '%s' saved. All files successfully processed.\n", folderName));
-    //     return logBuilder.toString();
-    // }
-
-    // // Log khi upload thư mục lồng nhau
-    // public String uploadNestedFolder(String peerId, String ip, int port, String folderStructure) {
-    //     StringBuilder logBuilder = new StringBuilder();
-    //     String timestamp = getCurrentTimestamp();
-
-    //     logBuilder.append(String.format("[%s] Peer %s - IP: %s, Port: %d\n", timestamp, peerId, ip, port));
-    //     logBuilder.append("Action: Upload Folder\n");
-    //     logBuilder.append("Folder Structure:\n");
-    //     logBuilder.append(folderStructure); // Dữ liệu cấu trúc thư mục đã được tạo sẵn
-    //     logBuilder.append("Status: Success\n");
-
-    //     return logBuilder.toString();
-    // }
-
-    // Tạo timestamp cho log
-    private String getCurrentTimestamp() {
+    // timestamp cho log
+    private static String getCurrentTimestamp() {
         // Trả về timestamp theo định dạng "yyyy-MM-dd HH:mm:ss"
         return java.time.LocalDateTime.now().toString().replace("T", " ").substring(0, 19);
     }
@@ -323,7 +311,7 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
 
     // Tính hash cho từng file bằng cách chia thành các piece
     @Transactional
-    private String calculateFileHash(MultipartFile file, FileOrFolder fileOrFolder, Peer peer, List<PrintWriter> loggers)
+    private String calculateFileHash(MultipartFile file, FileOrFolder fileOrFolder, Peer peer, List<Tracker> trackers)
             throws NoSuchAlgorithmException, IOException {
         MessageDigest sha1Digest = MessageDigest.getInstance("SHA-1");
         try (InputStream inputStream = file.getInputStream()) {
@@ -336,7 +324,7 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                 byte[] pieceHash = sha1Digest.digest(chunk);
                 String hash = bytesToHex(pieceHash);
                 fileHashBuilder.append(hash); // Nối hash của piece vào chuỗi file hash
-                Piece newPiece = Piece.builder().hash(hash).piece(pieceHash).build();
+                Piece newPiece = Piece.builder().hash(hash).piece(chunk).build();
                 if (pieceRepository.findByHash(hash).isEmpty()) {
                     newPiece.setPeerPieces(new ArrayList<>());
                     newPiece.getPeerPieces()
@@ -358,8 +346,12 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                         .id(FilesPieceId.builder().piece(newPiece).fileOrFolder(fileOrFolder).build()).build());
                 pieceRepository.save(newPiece);
                 String peerId = peer.getId().getUser().getUsername() + ": " + peer.getId().getUserAgent();
-                for(PrintWriter log : loggers){
-                    log.println(logger(peerId, fileOrFolder, newPiece.getPiece().length, "Update", String.valueOf(identity + 1)));
+                for (Tracker tracker : trackers) {
+                    String mes = logger(peerId, fileOrFolder,
+                            Double.parseDouble(String.valueOf(newPiece.getPiece().length)) / 1024, "Upload",
+                            String.valueOf(identity + 1), null, null);
+                    webSocketController.sendMessageServerToClients(mes, peer.getId().getUser().getUsername(),
+                            peer.getId().getUserAgent());
                 }
                 identity++;
             }
@@ -391,7 +383,7 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
 
     @Override
     public List<TorrentResponse> getUploadedFile(HttpServletRequest request) {
-        UserDetails userDetails = null;
+        UserDetails userDetails;
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
             userDetails = (UserDetails) auth.getPrincipal();
@@ -411,7 +403,6 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                         .collect(Collectors.toList());
                 List<Torrent> torrents = torrentRepository.findByIdIn(ids);
                 List<TorrentResponse> responses = new ArrayList<>();
-                List<List<FileOrFolderResponse>> listFileOrFolders = new ArrayList<>();
                 for (Torrent torrent : torrents) {
                     List<FileOrFolder> fileOrFolders = fileOrFolderRepository.findAllByTorrent(torrent);
                     List<FileOrFolderResponse> fileOrFolderResponses = fileOrFolders.stream()
@@ -431,12 +422,276 @@ public class FileOrFolderServiceImpl implements FileOrFolderService {
                     Map<String, Object> treeFiles = FileOrFolderUtil.buildDirectoryTree(fileOrFolders);
                     TorrentResponse tr = TorrentResponse.builder().fileOrFolders(fileOrFolderResponses)
                             .createBy(torrent.getCreateBy())
-                            .createDate(torrent.getCreateDate()).hashInfo(torrent.getInfoHash()).treeFiles(treeFiles).encoding(torrent.getEncoding())
+                            .createDate(torrent.getCreateDate()).hashInfo(torrent.getInfoHash()).treeFiles(treeFiles)
+                            .encoding(torrent.getEncoding())
                             .announce(torrent.getTorrentTrackers().stream().map(it -> {
-                                return "http://" + it.getId().getTracker().getHostname() + ":" + it.getId().getTracker().getPort();
+                                return "http://" + it.getId().getTracker().getHostname() + ":"
+                                        + it.getId().getTracker().getPort();
                             }).collect(Collectors.toList())).build();
+
                     if (pieces.equals("")) {
                         tr.setPieces(piecesFile);
+
+                    } else {
+                        tr.setPieces(pieces);
+                    }
+                    responses.add(tr);
+                }
+                return responses;
+            }
+        }
+        throw new MMTNotFoundException("User Not Found...!");
+    }
+
+    @Override
+    public List<TorrentResponse> getDownloadFile(HttpServletRequest request) {
+        UserDetails userDetails;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            userDetails = (UserDetails) auth.getPrincipal();
+            if (userDetails != null) {
+                User user = userRepository.findByUsername(userDetails.getUsername())
+                        .orElseThrow(() -> new MMTNotFoundException("User Not Found...!"));
+                String userAgent = request.getHeader("User-Agent");
+                Peer currentPeer = peerRepository.findById(PeerId.builder().user(user).userAgent(userAgent).build())
+                        .orElseThrow(() -> new MMTNotFoundException("Peer Not Found...!"));
+                List<PeerTracker> peerTrackers = currentPeer.getPeerTrackers();
+                List<Tracker> trackers = peerTrackers.stream().map(item -> item.getId().getTracker())
+                        .collect(Collectors.toList());
+                List<Peer> peers = new ArrayList<>();
+                trackers.stream().map(item -> peers.addAll(item.getPeerTrackers().stream().filter(it -> {
+                    return (it.getId().getPeer().getId().getUserAgent() == null
+                            ? currentPeer.getId().getUserAgent() != null
+                            : !it.getId().getPeer().getId().getUserAgent().equals(currentPeer.getId().getUserAgent()))
+                            || !Objects.equals(it.getId().getPeer().getId().getUser().getId(),
+                                    currentPeer.getId().getUser().getId());
+                }).collect(Collectors.toList()).stream().map(it -> it.getId().getPeer()).collect(Collectors.toList())))
+                        .collect(Collectors.toList());
+                List<Torrent> torrents = new ArrayList<>();
+                for (Peer peer : peers) {
+                    torrents.addAll(peer.getPeerTorrents().stream().filter(item -> {
+                        return !torrents.stream().map(it -> it.getId()).collect(Collectors.toList())
+                                .contains(item.getId().getTorrent().getId());
+                    }).collect(Collectors.toList()).stream().map(item -> item.getId().getTorrent())
+                            .collect(Collectors.toList()));
+                }
+                List<TorrentResponse> responses = new ArrayList<>();
+                for (Torrent torrent : torrents) {
+                    List<FileOrFolder> fileOrFolders = fileOrFolderRepository.findAllByTorrent(torrent);
+                    List<FileOrFolderResponse> fileOrFolderResponses = fileOrFolders.stream()
+                            .map(it -> fileOrFolderResponseModelMapper.fromFileOrFolder(it))
+                            .collect(Collectors.toList());
+                    String pieces = "";
+                    String piecesFile = "";
+                    for (FileOrFolder file : fileOrFolders) {
+                        piecesFile += file.getHashPieces();
+                        if (file.getType().equals("FOLDER")) {
+                            if (file.getFileOrFolder() == null) {
+                                pieces = file.getHashPieces();
+                                break;
+                            }
+                        }
+                    }
+                    Map<String, Object> treeFiles = FileOrFolderUtil.buildDirectoryTree(fileOrFolders);
+                    TorrentResponse tr = TorrentResponse.builder().fileOrFolders(fileOrFolderResponses)
+                            .createBy(torrent.getCreateBy())
+                            .createDate(torrent.getCreateDate()).hashInfo(torrent.getInfoHash()).treeFiles(treeFiles)
+                            .encoding(torrent.getEncoding())
+                            .announce(torrent.getTorrentTrackers().stream().map(it -> {
+                                return "http://" + it.getId().getTracker().getHostname() + ":"
+                                        + it.getId().getTracker().getPort();
+                            }).collect(Collectors.toList())).build();
+
+                    if (pieces.equals("")) {
+                        tr.setPieces(piecesFile);
+
+                    } else {
+                        tr.setPieces(pieces);
+                    }
+                    responses.add(tr);
+                }
+                return responses;
+            }
+        }
+        throw new MMTNotFoundException("User Not Found...!");
+    }
+
+    @Override
+    @Transactional
+    public void download(HttpServletRequest request, DownloadRequest downloadRequest) {
+        String userAgent = request.getHeader("User-Agent");
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        UserDetails userDetails;
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            userDetails = (UserDetails) auth.getPrincipal();
+            User user = userRepository.findByUsername(userDetails.getUsername())
+                    .orElseThrow(() -> new MMTNotFoundException());
+            Peer peer = peerRepository.findById(PeerId.builder().user(user).userAgent(userAgent).build())
+                    .orElseThrow(() -> new MMTNotFoundException("Peer Not Found...!"));
+            Torrent torrent = torrentRepository.findByInfoHash(downloadRequest.getHashInfo())
+                    .orElseThrow(() -> new MMTNotFoundException("Torrent Not Found...!"));
+            List<Tracker> trackers = torrent.getTorrentTrackers().stream().map(it -> it.getId().getTracker())
+                    .collect(Collectors.toList());
+            List<Tracker> joinedTrackers = peer.getPeerTrackers().stream().map(it -> it.getId().getTracker())
+                    .collect(Collectors.toList());
+            List<Tracker> currentTrackers = trackers.stream().filter(item -> {
+                for (Tracker tk : joinedTrackers) {
+                    if (tk.getHostname().equals(item.getHostname()) && tk.getPort().equals(item.getPort())) {
+                        return true;
+                    }
+                }
+                return false;
+            }).collect(Collectors.toList());
+            for (FileOrFolderResponse file : downloadRequest.getFileOrFolders()) {
+                // List<Piece> pieces =
+                // pieceRepository.findByContainPieces(downloadRequest.getPieces());
+                if (file.getType().equals("FILE") && file.getPath().startsWith(downloadRequest.getPath())) {
+                    try {
+                        FileOrFolder fileOrFolder = getFileOrFolder(torrent, file.getPath());
+                        List<FilesPiece> fp = fileOrFolder.getFilesPieces();
+                        List<Piece> pieces = fp.stream().map((it) -> {
+                            return it.getId().getPiece();
+                        }).collect(Collectors.toList());
+                        ChunkQueueManager chunkQueueManager = new ChunkQueueManager(pieces.size());
+                        File dir = new File("download/" + (file.getPath().indexOf('/') != -1
+                                ? file.getPath().substring(0, file.getPath().lastIndexOf("/"))
+                                : ""));
+                        if (!dir.exists()) {
+                            dir.mkdirs();
+                        }
+                        RandomAccessFile fileAccess = new RandomAccessFile("download/" + file.getPath(), "rw");
+                        // for (int i = 0; i < fileOrFolder.getLength(); i++) {
+                        // fileAccess.write(' '); // Ghi các ký tự trống
+                        // }
+                        for (Tracker ctracker : currentTrackers) {
+                            List<Peer> peersOfTracker;
+                            peersOfTracker = ctracker.getPeerTrackers().stream()
+                                    .map(it -> it.getId().getPeer()).collect(Collectors.toList()).stream()
+                                    .filter(it -> (it.getId().getUser().getUsername() == null
+                                            ? peer.getId().getUser().getUsername() != null
+                                            : !it.getId().getUser().getUsername()
+                                                    .equals(peer.getId().getUser().getUsername()))
+                                            || (it.getId().getUserAgent() == null ? peer.getId().getUserAgent() != null
+                                                    : !it.getId().getUserAgent().equals(peer.getId().getUserAgent())))
+                                    .collect(Collectors.toList());
+                            ExecutorService executor = Executors.newFixedThreadPool(peersOfTracker.size());
+                            for (Peer p : peersOfTracker) {
+                                executor.execute(peerDownloader.init(ctracker, fileOrFolder, peer, p, pieces,
+                                        chunkQueueManager, fileAccess));
+                            }
+                            executor.shutdown();
+                        }
+                        peerTorrentRepository.save(
+                                PeerTorrent.builder().id(PeerTorrentId.builder().peer(peer).torrent(torrent).build())
+                                        .typeRole("SEEDER").build());
+                    } catch (FileNotFoundException ex) {
+                        ex.printStackTrace();
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
+            List<FileOrFolder> filesSave = downloadRequest.getFileOrFolders().stream().map(it -> getFileOrFolder(torrent, it.getPath())).collect(Collectors.toList());
+            FileOrFolder lastFile = filesSave.getLast();
+                if (lastFile.getType().equals("FILE")) {
+                    for (FileOrFolderResponse file : downloadRequest.getFileOrFolders()) {
+                        if(file.getPath().startsWith(downloadRequest.getPath())){
+                        try {
+                            String log = logger(
+                                    peer.getId().getUser().getUsername() + ": " + peer.getId().getUserAgent(),
+                                    getFileOrFolder(torrent, file.getPath()), Double.parseDouble(String.valueOf(getFileOrFolder(torrent, file.getPath()).getLength())) / 1024, "Finished download", null,
+                                    null, null);
+                            webSocketController.sendMessageServerToClients(log, peer.getId().getUser().getUsername(), peer.getId().getUserAgent());
+                        } catch (MessagingException ex) {
+                        } catch (JsonProcessingException ex) {
+                        }
+                    }
+                    }
+                } else {
+                    String log = logger(
+                        peer.getId().getUser().getUsername() + ": " + peer.getId().getUserAgent(),
+                                lastFile, Double.parseDouble(String.valueOf(lastFile.getLength())) / 1024, "Finished download", null,
+                                null, null);
+                try {
+                    webSocketController.sendMessageServerToClients(log, peer.getId().getUser().getUsername(), peer.getId().getUserAgent());
+                } catch (MessagingException ex) {
+                } catch (JsonProcessingException ex) {
+                }
+                }
+        }
+    }
+
+    private FileOrFolder getFileOrFolder(Torrent torrent, String path) {
+        return getFileOrFolder(torrent, path, null, 0);
+    }
+
+    private FileOrFolder getFileOrFolder(Torrent torrent, String path, FileOrFolder parent, int level) {
+        String[] fileNames = path.split("/");
+        if (fileNames.length <= level)
+            return parent;
+        String filename = fileNames[level];
+        List<FileOrFolder> fileOrFolders = torrent.getFileOrFolders();
+        FileOrFolder par = fileOrFolders.stream().filter(item -> {
+            if (parent != null)
+                return (item.getFileName() == null ? filename == null : item.getFileName().equals(filename))
+                        && Objects.equals(item.getFileOrFolder().getId(), parent.getId());
+            return (item.getFileName() == null ? filename == null : item.getFileName().equals(filename))
+                    && item.getFileOrFolder() == null;
+        }).collect(Collectors.toList()).get(0);
+        return getFileOrFolder(torrent, path, par, level + 1);
+    }
+
+    @Override
+    public List<TorrentResponse> getDownloadHistoryFile(HttpServletRequest request){
+        UserDetails userDetails;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !(auth instanceof AnonymousAuthenticationToken)) {
+            userDetails = (UserDetails) auth.getPrincipal();
+            if (userDetails != null) {
+                User user = userRepository.findByUsername(userDetails.getUsername())
+                        .orElseThrow(() -> new MMTNotFoundException("User Not Found...!"));
+                String userAgent = request.getHeader("User-Agent");
+                Peer currentPeer = peerRepository.findById(PeerId.builder().user(user).userAgent(userAgent).build())
+                        .orElseThrow(() -> new MMTNotFoundException("Peer Not Found...!"));
+                List<PeerTorrent> peerTorrents = peerTorrentRepository.findByIdPeerAndTypeRole(currentPeer,
+                        "SEEDER");
+                List<Long> ids = peerTorrents.stream()
+                        .map(item -> {
+                            Long torrentId = item.getId().getTorrent().getId();
+                            return torrentId;
+                        })
+                        .collect(Collectors.toList());
+                List<Torrent> torrents = torrentRepository.findByIdIn(ids);
+                List<TorrentResponse> responses = new ArrayList<>();
+                for (Torrent torrent : torrents) {
+                    List<FileOrFolder> fileOrFolders = fileOrFolderRepository.findAllByTorrent(torrent);
+                    List<FileOrFolderResponse> fileOrFolderResponses = fileOrFolders.stream()
+                            .map(it -> fileOrFolderResponseModelMapper.fromFileOrFolder(it))
+                            .collect(Collectors.toList());
+                    String pieces = "";
+                    String piecesFile = "";
+                    for (FileOrFolder file : fileOrFolders) {
+                        piecesFile += file.getHashPieces();
+                        if (file.getType().equals("FOLDER")) {
+                            if (file.getFileOrFolder() == null) {
+                                pieces = file.getHashPieces();
+                                break;
+                            }
+                        }
+                    }
+                    Map<String, Object> treeFiles = FileOrFolderUtil.buildDirectoryTree(fileOrFolders);
+                    TorrentResponse tr = TorrentResponse.builder().fileOrFolders(fileOrFolderResponses)
+                            .createBy(torrent.getCreateBy())
+                            .createDate(torrent.getCreateDate()).hashInfo(torrent.getInfoHash()).treeFiles(treeFiles)
+                            .encoding(torrent.getEncoding())
+                            .announce(torrent.getTorrentTrackers().stream().map(it -> {
+                                return "http://" + it.getId().getTracker().getHostname() + ":"
+                                        + it.getId().getTracker().getPort();
+                            }).collect(Collectors.toList())).build();
+
+                    if (pieces.equals("")) {
+                        tr.setPieces(piecesFile);
+
                     } else {
                         tr.setPieces(pieces);
                     }

@@ -17,7 +17,7 @@ public class TrackerController {
     final private TrackerService trackerService;
 
     @GetMapping("/all")
-    public ResponseEntity<?> getListTracker(){
+    public ResponseEntity<?> getAllTracker(){
         return ResponseEntity.ok(trackerService.getAllTracker());
     }
 }

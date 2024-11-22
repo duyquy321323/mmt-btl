@@ -73,9 +73,9 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .authorizeRequests(request -> request
-                        .antMatchers(HttpMethod.POST, "/user/login", "/user/register", "/files/upload", "/ws/**")
+                        .antMatchers(HttpMethod.POST, "/user/login", "/user/register", "/files/upload", "/ws/**", "/peer/disconnect-trackers", "/peer/join-trackers", "/peer/join-tracker", "/files/download", "/peer/notification-trackers")
                         .permitAll()
-                        .antMatchers(HttpMethod.GET, "/tracker/all", "/files/file-uploaded", "/ws/**")
+                        .antMatchers(HttpMethod.GET, "/tracker/all", "/files/file-uploaded", "/files/file-download", "/ws/**", "/peer/joined-trackers", "/files/file-download-history")
                         .permitAll()
                         .antMatchers(HttpMethod.POST, "/user/logout")
                         .authenticated()

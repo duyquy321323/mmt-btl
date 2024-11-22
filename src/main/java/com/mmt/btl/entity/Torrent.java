@@ -40,7 +40,7 @@ public class Torrent {
     @Column(name="create_by")
     private String createBy;
 
-    @Column(name="info_hash")
+    @Column(name="info_hash", unique=true)
     private String infoHash;
 
     @OneToMany(cascade={CascadeType.MERGE,CascadeType.PERSIST}, mappedBy="torrent", orphanRemoval = true)
